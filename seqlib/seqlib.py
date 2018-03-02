@@ -1,0 +1,65 @@
+import numpy as np
+import pandas as pd
+
+class Seqlib:
+    def __init__(self, ninds, nsites): #no minfreq and maxfreq?
+        self.ninds = ninds
+        self.nsites = nsites
+        #self.maxfreq = maxfreq    #this did not work...
+        #self.minfreq = minfreq
+        #self.arr = None
+        #self.PD = None
+        self.seqs = self.simulate(ninds, nsites)
+        
+    def mutate(self, base):
+        diff = set("ACTG") - set(base)
+        return np.random.choice(list(diff))
+        
+    def simulate(self):
+        oseq = np.random.choice(list("ACGT"), size=self.nsites)    #original seq? get a random seq of length = nsites
+        arr = np.array([oseq for i in range(self.ninds)])          #create an array by duplicating oseq into number of rows = ninds
+        muts = np.random.binomial(1, 0.1, (self.ninds, self.nsites))    #create a integer boolean mask using binomial. mutation rate = 0.1
+        for col in range(self.nsites):                             #for i in each integer in nsites,
+            newbase = mutate(arr[0, col])    #mutate each base in seq... could have done newbase = mutate(oseq[col])? any difference?
+            mask = muts[:, col].astype(bool)                  #convert integer mask to actual bool mask
+            arr[:, col][mask] = newbase                       #convert arr position to newbase only if the mutation mask is true
+        missing = np.random.binomial(1, 0.1, (self.ninds, self.nsites)) #creates missing values.... simulation of indels?
+        arr[missing.astype(bool)] = "N"                       #returns missing values as N
+        return arr
+        #self.arr = arr #this did not work
+
+    def filter_missing(arr, maxfreq):                            #def fxn two inputs; one is arr from above?
+        freqmissing = np.sum(arr == "N", axis=0) / arr.shape[0]  #total frequency of indels per column?
+        arr[:, freqmissing <= maxfreq]                    #filter cols with indel frequency higher than input, maxfreq
+        #self.arr = arr[:, freqmissing <= maxfreq]
+        return arr
+        
+    def filter_maf(arr, minfreq):                                #minor allele frequency... MAF? input is arr and given minfreq
+        freqs = np.sum(arr != arr[0], axis=0) / arr.shape[0]  #adds up number of times the first seq matches the rest in the array
+        maf = freqs.copy()                                       #makes a copy of this value...
+        maf[maf > 0.5] = 1 - maf[maf > 0.5]          #actually get minor allele freq. if freq cal'd above is >0.5, do 1-freq
+        return arr[:, maf > minfreq]                     #return all rows of arr if the MAF is greater than 0.1. (cutoff is QC?)
+        #self.arr = arr[:, maf > minfreq]
+
+    def maf(self):
+        arr = self.simulate()  #gen array
+        freqs = np.sum(arr != arr[0], axis=0) / arr.shape[0] #adds up number of times the first seq matches the rest in the array
+        maf = freqs.copy()
+        maf[maf > 0.5] = 1 - maf[maf > 0.5]               #get minor allele freq. if freq cal'd above is >0.5, do 1-freq
+        return freqs
+        
+    def filter(self, minfreq, maxfreq):
+        maf = self.filter_maf(self.filter_missing(maxfreq), minfreq)
+        return maf    
+        
+    def calculcate_statistics(self):                                #fxn takes arr as arg
+        nd = np.var(arr == arr[0], axis=0).mean()                  #mean nt diversity: mean of variance values of each row
+        mf = np.mean(np.sum(arr != arr[0], axis=0) / arr.shape[0]) #mean minor allele freq: sum # not = first row, divide by $# rows, take mean
+        inv = np.any(arr != arr[0], axis=0).sum()                  #invariant sites: count num not equal to first seq?
+        var = arr.shape[1] - inv                                   #variable sites: num cols - num not equal to first seq?
+        return pd.Series(
+            {"mean nucleotide diversity": nd,
+             "mean minor allele frequency": mf,
+             "invariant sites": inv,
+             "variable sites": var,
+            })
