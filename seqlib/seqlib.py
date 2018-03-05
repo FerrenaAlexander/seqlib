@@ -41,6 +41,7 @@ class Seqlib:
         return arr
         # self.arr = arr #this did not work.
         # using return arr means init will print out arr? or pass > next fxn?
+        # I also made this fxn private
 
 
 #    def maf(self):
